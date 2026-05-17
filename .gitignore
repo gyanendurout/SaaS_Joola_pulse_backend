@@ -1,37 +1,50 @@
-﻿# Python
+# Python
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
+*$py.class
+*.so
 .Python
-*.egg
-*.egg-info/
-dist/
-build/
-.eggs/
 
-# Virtual environment
+# Virtual environments
 .venv/
 venv/
 env/
 
-# Environment variables (NEVER commit secrets)
+# Environment files — never commit real secrets
 .env
 .env.local
-.env.production
+.env.*.local
+
+# Packaging / egg-info
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Testing & linting caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
 
 # Logs
 logs/
 *.log
 *.state.json
 
+# Storage (crawled HTML artifacts — can be large)
+storage/
+
+# Playwright browser binaries
+.playwright/
+
+# OS
+.DS_Store
+Thumbs.db
+
 # IDE
 .vscode/
 .idea/
 *.swp
-
-# OS
-.DS_Store
-
-# Claude
-.claude/
+*.swo

@@ -67,3 +67,6 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = [
+  "live: hits a running uvicorn at localhost:8000 — auto-skipped when offline",
+]

@@ -1,4 +1,4 @@
-#requires -Version 5
+﻿#requires -Version 5
 <#
 .SYNOPSIS
   Backend regression test for JOOLA Pulse FastAPI.

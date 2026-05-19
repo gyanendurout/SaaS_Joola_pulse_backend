@@ -191,7 +191,7 @@ if (-not $SkipEndpoints) {
 # --- Summary ---
 $finishedAt = Get-Date
 $elapsed = ($finishedAt - $startedAt).TotalSeconds
-$failed = ($results | Where-Object { -not $_.Ok }).Count
+$failed = ($results | Where-Object { -not $_.Ok } | Measure-Object).Count
 
 Write-Host ''
 Write-Host '=== Summary ===' -ForegroundColor Cyan

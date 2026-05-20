@@ -28,11 +28,13 @@ def parse_blog(text: str) -> dict[str, Any]:
     alt = _ALT_RE.search(text)
     alt_text = alt.group(1).strip() if alt else None
 
+    word_count = len(re.findall(r"\b\w+\b", text))
     return {
         "title": title,
         "meta_description": meta_description,
         "alt_text": alt_text,
         "body": text,
+        "word_count": word_count,
     }
 
 

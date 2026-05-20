@@ -1,0 +1,22 @@
+feat(content): sync full Content Generation backend + selftest harness + 008 rollback
+
+Brings the backend staging repo in line with the source workspace so prod
+Railway can serve the same Content Studio surface the frontend now expects:
+
+- app/content/__init__.py, critic.py, generator.py, parsers.py,
+  rate_limiter.py, signal_collectors.py, types.py - full content stack
+  with TopPostSignal multi-platform fields, SignalsConfig AliasChoices,
+  _has_picked_signal-driven gpt-4o promotion, JOOLA brand_id filter on
+  TikTok/X/YouTube, pickleball-only SEO filter
+- app/routes/content.py - all /api/content/* endpoints
+- supabase/migrations/008_content_generation.sql - content_drafts +
+  content_generation_runs + brand_voice + templates
+- supabase/migrations/008_content_generation_rollback.sql (NEW) -
+  matching rollback with trailing -- terminator so migration linter passes
+- selftest_topics.py (NEW) - dynamic topic-fidelity self-test harness
+- test_content.py, tests/api/test_content.py, tests/conftest.py - test
+  scaffolding
+
+pyproject.toml updates pull in deps the content stack needs.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>

@@ -20,7 +20,7 @@ from openai import AsyncOpenAI
 
 from app.config import get_settings
 from app.content.parsers import parse_output, validate_output
-from app.content.prompt_builder import build_prompt
+from app.content.prompt_builder import _has_picked_signal, build_prompt
 from app.content.rate_limiter import get_limiter
 from app.content.signal_collectors import assemble_bundle
 from app.content.types import (
@@ -43,9 +43,16 @@ _PRICE_PER_1M = {
 }
 
 
-def _model_for(content_type: str) -> str:
-    """Default model per format per spec §12."""
-    # Blog/IG/Twitter all default to gpt-4o-mini in v1
+def _model_for(content_type: str, *, has_picked_post: bool = False) -> str:
+    """Default model per format per spec §12.
+
+    When the user picked a specific top post (single signal), upgrade to
+    gpt-4o so the picked post's product/event specifics actually land in
+    the output. gpt-4o-mini tends to overfit to the brand voice and lose
+    named entities from the reference post.
+    """
+    if has_picked_post:
+        return "gpt-4o"
     return "gpt-4o-mini"
 
 
@@ -124,6 +131,8 @@ async def generate_stream(
         else str(request.content_type)
     )
     tone = request.tone.value if hasattr(request.tone, "value") else str(request.tone)
+    # Model is finalized AFTER the bundle is built — if the user picked a
+    # single specific post, we upgrade to gpt-4o to keep product specifics.
     model = _model_for(content_type)
     run_id = str(uuid.uuid4())
     bundle: ContextBundle | None = None
@@ -141,6 +150,12 @@ async def generate_stream(
             request.signals_config,
             str(request.source_article_id) if request.source_article_id else None,
         )
+
+        # 2b. Promote to gpt-4o when the user explicitly picked any signal
+        # (top post, SEO keyword, or news article). gpt-4o-mini ignores the
+        # picked-signal TOPIC OVERRIDE and defaults to brand-voice paddle copy.
+        if _has_picked_signal(bundle):
+            model = _model_for(content_type, has_picked_post=True)
 
         # 3. build prompt
         prompt = build_prompt(content_type, bundle, request)

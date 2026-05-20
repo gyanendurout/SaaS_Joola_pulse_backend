@@ -55,30 +55,70 @@ def clear_cache() -> None:
 
 # ─── Per-source collectors ────────────────────────────────────────────────────
 
+import re as _re
+
+# JOOLA Pulse is pickleball-only. JOOLA the brand also sells table-tennis gear,
+# so domain_ranked_keywords is full of TT terms that we must NOT surface here.
+# Must mirror the frontend filter in app/content-generation/text/page.tsx.
+_PICKLEBALL_KW = _re.compile(
+    r"\b(pickle\s*ball|pickleball|ben\s*johns|anna\s*leigh|tyson\s*mcguffin|"
+    r"hyperion|perseus|joola)\b",
+    _re.IGNORECASE,
+)
+_TT_KW = _re.compile(
+    r"\b(table[\s-]?tennis|tennis[\s-]?table|ping[\s-]?pong|pong[\s-]?ping|"
+    r"\btt\b|tt[\s-]?(?:table|ball|rubber|blade)|"
+    r"(?:foldable|outdoor|indoor)\s+tt|"
+    r"tennis\s+(?:equipment|sport|racket|racquet|paddle|ball|rubber|blade)|"
+    r"stiga|butterfly|killerspin)\b",
+    _re.IGNORECASE,
+)
+
+
 def _q_seo_keywords_sync() -> list[SeoSignal]:
     db = service_client()
     try:
         res = (
             db.table("domain_ranked_keywords")
-            .select("keyword,search_volume,difficulty,position,previous_position,is_gap")
-            .gte("search_volume", 500)
+            .select("keyword,search_volume,position")
             .order("search_volume", desc=True)
-            .limit(20)
+            .limit(400)
             .execute()
         )
         rows = res.data or []
     except Exception as e:
         log.warning("seo_keywords_query_failed", error=str(e))
         return []
+    # Dedupe + apply pickleball-only filter so picked keywords like
+    # "pickleball nets" are reachable instead of crowded out by TT terms.
+    seen: dict[str, dict] = {}
+    for r in rows:
+        k = (r.get("keyword") or "").strip().lower()
+        if not k:
+            continue
+        if _TT_KW.search(k):
+            continue
+        if not _PICKLEBALL_KW.search(k):
+            continue
+        prev = seen.get(k)
+        if prev is None:
+            seen[k] = r
+            continue
+        prev_vol = prev.get("search_volume") or 0
+        cur_vol = r.get("search_volume") or 0
+        if cur_vol > prev_vol:
+            seen[k] = r
+        elif cur_vol == prev_vol and (r.get("position") or 9999) < (prev.get("position") or 9999):
+            seen[k] = r
     return [
         SeoSignal(
             keyword=r.get("keyword") or "",
             search_volume=r.get("search_volume"),
             position=r.get("position"),
-            is_gap=bool(r.get("is_gap")),
-            difficulty=r.get("difficulty"),
+            is_gap=r.get("position") is None,
+            difficulty=None,
         )
-        for r in rows if r.get("keyword")
+        for r in sorted(seen.values(), key=lambda r: -(r.get("search_volume") or 0))[:60]
     ]
 
 
@@ -91,46 +131,174 @@ async def collect_seo_keywords() -> list[SeoSignal]:
     )
 
 
+# JOOLA brand_id — same constant used by the frontend page.tsx. Must match.
+# Filters out competitor brands (Selkirk, Paddletek, Engage, etc.) that share
+# the cross-platform tables. JOOLA-only because Content Studio drafts from
+# our OWN posts.
+_JOOLA_BRAND_ID = "04db8591-37a3-4634-9d11-536975fa6935"
+
+
 def _q_top_posts_sync() -> list[TopPostSignal]:
+    """Top posts across IG, TikTok, X, YouTube — JOOLA-owned accounts only.
+
+    The user-selected `post_id` flows through `assemble_bundle`'s filter
+    (`selected_post_ids`); for that to work we must include the matching
+    row regardless of which platform it came from.
+    """
     db = service_client()
+    out: list[TopPostSignal] = []
+
+    # 1) Instagram — table is JOOLA-only by design
     try:
         res = (
             db.table("joola_ig_posts")
             .select(
-                "post_id,engagement_rate,thumbnail_url,caption,posted_at,"
+                "post_id,engagement_rate,thumbnail_url,caption,posted_at,post_type,"
+                "like_count,view_count,comment_count,post_url,"
                 "joola_ig_post_analysis(content_theme)"
             )
-            .order("engagement_rate", desc=True)
-            .limit(10)
+            .order("engagement_rate", desc=True, nullsfirst=False)
+            .limit(15)
             .execute()
         )
-        rows = res.data or []
+        for r in res.data or []:
+            cap = r.get("caption") or ""
+            first_line = cap.splitlines()[0][:200] if cap else None
+            analysis = r.get("joola_ig_post_analysis") or []
+            theme = None
+            if isinstance(analysis, list) and analysis:
+                theme = analysis[0].get("content_theme")
+            elif isinstance(analysis, dict):
+                theme = analysis.get("content_theme")
+            out.append(TopPostSignal(
+                post_id=str(r.get("post_id") or ""),
+                platform="instagram",
+                content_theme=theme,
+                engagement_rate=r.get("engagement_rate"),
+                likes=r.get("like_count"),
+                views=r.get("view_count"),
+                comments=r.get("comment_count"),
+                caption_first_line=first_line,
+                thumbnail_url=r.get("thumbnail_url"),
+                post_type=r.get("post_type"),
+                posted_at=str(r.get("posted_at")) if r.get("posted_at") else None,
+                url=r.get("post_url"),
+            ))
     except Exception as e:
-        log.warning("top_posts_query_failed", error=str(e))
-        return []
+        log.warning("top_posts_ig_query_failed", error=str(e))
 
-    out: list[TopPostSignal] = []
-    for r in rows:
-        cap = r.get("caption") or ""
-        first_line = cap.splitlines()[0][:200] if cap else None
-        analysis = r.get("joola_ig_post_analysis") or []
-        theme = None
-        if isinstance(analysis, list) and analysis:
-            theme = analysis[0].get("content_theme")
-        elif isinstance(analysis, dict):
-            theme = analysis.get("content_theme")
-        out.append(TopPostSignal(
-            post_id=str(r.get("post_id") or ""),
-            content_theme=theme,
-            engagement_rate=r.get("engagement_rate"),
-            caption_first_line=first_line,
-            thumbnail_url=r.get("thumbnail_url"),
-        ))
+    # 2) TikTok — filter to JOOLA brand_id
+    try:
+        res = (
+            db.table("tiktok_videos")
+            .select(
+                "id,tiktok_video_id,text,thumbnail_url,video_url,"
+                "view_count,like_count,comment_count,share_count,posted_at,topics"
+            )
+            .eq("brand_id", _JOOLA_BRAND_ID)
+            .order("view_count", desc=True, nullsfirst=False)
+            .limit(15)
+            .execute()
+        )
+        for r in res.data or []:
+            text = r.get("text") or ""
+            first_line = text.splitlines()[0][:200] if text else None
+            topics = r.get("topics") or []
+            theme = topics[0] if isinstance(topics, list) and topics else None
+            views = r.get("view_count")
+            likes = r.get("like_count")
+            er = (likes / views) if views and likes else None
+            out.append(TopPostSignal(
+                post_id=str(r.get("id") or ""),
+                platform="tiktok",
+                content_theme=theme,
+                engagement_rate=er,
+                likes=likes,
+                views=views,
+                comments=r.get("comment_count"),
+                caption_first_line=first_line,
+                thumbnail_url=r.get("thumbnail_url"),
+                post_type="video",
+                posted_at=str(r.get("posted_at")) if r.get("posted_at") else None,
+                url=r.get("video_url"),
+            ))
+    except Exception as e:
+        log.warning("top_posts_tiktok_query_failed", error=str(e))
+
+    # 3) X / Twitter — filter to JOOLA brand_id
+    try:
+        res = (
+            db.table("x_posts")
+            .select("id,text,like_count,retweet_count,reply_count,view_count,posted_at")
+            .eq("brand_id", _JOOLA_BRAND_ID)
+            .order("like_count", desc=True, nullsfirst=False)
+            .limit(15)
+            .execute()
+        )
+        for r in res.data or []:
+            text = r.get("text") or ""
+            first_line = text.splitlines()[0][:200] if text else None
+            views = r.get("view_count")
+            likes = r.get("like_count")
+            er = (likes / views) if views and likes else None
+            out.append(TopPostSignal(
+                post_id=str(r.get("id") or ""),
+                platform="twitter",
+                content_theme=None,
+                engagement_rate=er,
+                likes=likes,
+                views=views,
+                comments=r.get("reply_count"),
+                caption_first_line=first_line,
+                thumbnail_url=None,
+                post_type="tweet",
+                posted_at=str(r.get("posted_at")) if r.get("posted_at") else None,
+                url=None,
+            ))
+    except Exception as e:
+        log.warning("top_posts_x_query_failed", error=str(e))
+
+    # 4) YouTube — filter to JOOLA brand_id
+    try:
+        res = (
+            db.table("yt_videos")
+            .select(
+                "id,youtube_video_id,title,thumbnail_url,"
+                "view_count,like_count,comment_count,published_at"
+            )
+            .eq("brand_id", _JOOLA_BRAND_ID)
+            .order("view_count", desc=True, nullsfirst=False)
+            .limit(15)
+            .execute()
+        )
+        for r in res.data or []:
+            title = r.get("title") or ""
+            views = r.get("view_count")
+            likes = r.get("like_count")
+            er = (likes / views) if views and likes else None
+            yt_id = r.get("youtube_video_id")
+            out.append(TopPostSignal(
+                post_id=str(r.get("id") or ""),
+                platform="youtube",
+                content_theme=None,
+                engagement_rate=er,
+                likes=likes,
+                views=views,
+                comments=r.get("comment_count"),
+                caption_first_line=title,
+                thumbnail_url=r.get("thumbnail_url"),
+                post_type="video",
+                posted_at=str(r.get("published_at")) if r.get("published_at") else None,
+                url=f"https://www.youtube.com/watch?v={yt_id}" if yt_id else None,
+            ))
+    except Exception as e:
+        log.warning("top_posts_yt_query_failed", error=str(e))
+
     return out
 
 
 async def collect_top_posts() -> list[TopPostSignal]:
-    """Top IG posts last 90d ORDER BY ER DESC LIMIT 10. Cached 1h."""
+    """Top JOOLA posts across IG, TikTok, X, YouTube (15 each). Cached 1h."""
     return await _cached(
         "top_posts",
         3600,
@@ -201,9 +369,9 @@ def _q_reddit_sync() -> list[RedditSignal]:
         cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
         res = (
             db.table("reddit_mentions")
-            .select("id,title,subreddit,topics,sentiment,is_crisis,is_opportunity,content")
+            .select("id,post_title,subreddit,topics,sentiment,is_crisis,is_opportunity,content_text")
             .or_("is_opportunity.eq.true,is_crisis.eq.true")
-            .gte("created_at", cutoff)
+            .gte("posted_at", cutoff)
             .limit(10)
             .execute()
         )
@@ -214,11 +382,13 @@ def _q_reddit_sync() -> list[RedditSignal]:
 
     out: list[RedditSignal] = []
     for r in rows:
-        content = r.get("content") or ""
+        content = r.get("content_text") or ""
         excerpt = content[:160] + "…" if len(content) > 160 else content or None
+        # Comments inherit no post_title; fall back to first line of content so UI rows aren't blank.
+        title = r.get("post_title") or (content.splitlines()[0][:80] if content else "(Reddit comment)")
         out.append(RedditSignal(
             id=str(r.get("id") or ""),
-            title=r.get("title") or "",
+            title=title,
             subreddit=r.get("subreddit"),
             topics=list(r.get("topics") or []),
             sentiment=r.get("sentiment"),
@@ -275,7 +445,8 @@ def _q_player_roster_sync() -> list[PlayerSignal]:
     try:
         res = (
             db.table("influencers")
-            .select("display_name,ig_handle,name")
+            .select("name,instagram_handle,is_active")
+            .eq("is_active", True)
             .execute()
         )
         rows = res.data or []
@@ -284,10 +455,10 @@ def _q_player_roster_sync() -> list[PlayerSignal]:
         return []
     out: list[PlayerSignal] = []
     for r in rows:
-        name = r.get("display_name") or r.get("name") or ""
+        name = r.get("name") or ""
         if not name:
             continue
-        out.append(PlayerSignal(name=name, handle=r.get("ig_handle")))
+        out.append(PlayerSignal(name=name, handle=r.get("instagram_handle")))
     return out
 
 

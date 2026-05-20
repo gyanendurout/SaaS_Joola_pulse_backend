@@ -10,7 +10,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
 # ─── Enums ────────────────────────────────────────────────────────────────────
@@ -68,17 +68,29 @@ class RunStatus(str, Enum):
 # ─── Signal config ────────────────────────────────────────────────────────────
 
 class SignalsConfig(BaseModel):
-    """Which signal sources to pull and which specific IDs to favor."""
+    """Which signal sources to pull and which specific IDs to favor.
 
-    seo_keywords: bool = True
-    top_posts: bool = True
-    news: bool = True
-    reddit: bool = False
-    loyal_fans: bool = False
-    player_roster: bool = True
+    Accepts both the short (`seo_keywords`) and long-prefixed (`use_seo_keywords`)
+    field names from the wire — the frontend uses the `use_*` form.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    seo_keywords: bool = Field(default=True, validation_alias=AliasChoices("seo_keywords", "use_seo_keywords"))
+    top_posts: bool = Field(default=True, validation_alias=AliasChoices("top_posts", "use_top_posts"))
+    news: bool = Field(default=True, validation_alias=AliasChoices("news", "use_news"))
+    reddit: bool = Field(default=False, validation_alias=AliasChoices("reddit", "use_reddit"))
+    loyal_fans: bool = Field(default=False, validation_alias=AliasChoices("loyal_fans", "use_loyal_fans"))
+    player_roster: bool = Field(default=True, validation_alias=AliasChoices("player_roster", "use_player_roster"))
     # Optional explicit ID lists for fine-grained selection from the UI
-    selected_keyword_ids: list[str] = Field(default_factory=list)
-    selected_post_ids: list[str] = Field(default_factory=list)
+    selected_keyword_ids: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("selected_keyword_ids", "selected_seo_keywords"),
+    )
+    selected_post_ids: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("selected_post_ids", "selected_top_post_ids"),
+    )
     selected_news_ids: list[str] = Field(default_factory=list)
     selected_reddit_ids: list[str] = Field(default_factory=list)
 
@@ -95,10 +107,17 @@ class SeoSignal(BaseModel):
 
 class TopPostSignal(BaseModel):
     post_id: str
+    platform: str = "instagram"  # 'instagram' | 'tiktok' | 'twitter' | 'youtube'
     content_theme: str | None = None
     engagement_rate: float | None = None
+    likes: int | None = None
+    views: int | None = None
+    comments: int | None = None
     caption_first_line: str | None = None
     thumbnail_url: str | None = None
+    post_type: str | None = None
+    posted_at: str | None = None
+    url: str | None = None
 
 
 class NewsSignal(BaseModel):

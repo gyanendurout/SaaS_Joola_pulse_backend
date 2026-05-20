@@ -28,12 +28,17 @@ Output schema (strict):
 }
 
 A draft fails ("passed": false) if ANY of the following are true:
-1. Forbidden patterns present (medical claims, competitor names, fabricated stats/quotes, aggressive verbs)
-2. Length out of bounds for the content type
+1. Forbidden patterns present (medical claims, competitor names, fabricated stats/quotes, aggressive verbs like "crush"/"destroy"/"kill")
+2. Length out of bounds for the content type (count only prose words, not label tokens like HOOK/BODY/CTA/HASHTAGS/MENTIONS)
 3. Tone mismatch with what was requested
-4. Missing required structural element (IG no hashtags, blog no meta description, tweet >270 chars)
-5. Hallucinated numbers — any specific number, percentage, mm, or $ figure that is not anchored in the user's inputs
-6. Athlete quote constructions (`"<name> said"`) without a source quote
+4. Missing required structural element — rules differ per content type:
+   - IG post ONLY: HASHTAGS section must have 5-10 tokens starting with "#". Count only words that begin with "#". Do NOT flag "no hashtags" if # tokens appear anywhere. Blogs and tweets do NOT require hashtags — never flag missing hashtags for blog or twitter_response.
+   - Blog ONLY: must have a line starting with "# " (H1) and a "*Meta description" line (150-160 chars). Blogs do NOT require hashtags.
+   - Twitter ONLY: REPLY line must be ≤270 characters.
+5. Hallucinated numbers — any specific number, percentage, mm, or $ figure not anchored in the user's inputs
+6. Athlete quote constructions (`"<name> said"`) without a source quote in the inputs
+
+IMPORTANT: Apply structural checks only to the matching content type. Never flag missing hashtags for a blog or tweet.
 
 Be concise. Cite each violation with a short phrase referencing the offending text."""
 

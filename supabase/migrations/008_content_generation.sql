@@ -25,12 +25,31 @@ create table if not exists content_drafts (
   body                     text not null,
   hashtags                 text[],
   metadata                 jsonb default '{}'::jsonb,
-  source_article_id        uuid references news_articles(id),
+  source_article_id        uuid,
   source_signal_snapshot   jsonb not null,
   generation_run_id        uuid,
   parent_draft_id          uuid references content_drafts(id),
   version                  int  not null default 1
 );
+
+-- Add FK to news_articles only if that table exists in this project.
+-- Keeps 008 portable across Supabase projects that may not have run migration 006.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.tables
+    where table_schema = 'public' and table_name = 'news_articles'
+  ) and not exists (
+    select 1 from information_schema.table_constraints
+    where table_schema = 'public'
+      and table_name = 'content_drafts'
+      and constraint_name = 'content_drafts_source_article_fk'
+  ) then
+    alter table content_drafts
+      add constraint content_drafts_source_article_fk
+      foreign key (source_article_id) references news_articles(id);
+  end if;
+end $$;
 
 create index if not exists content_drafts_created_by_status_idx
   on content_drafts(created_by, status);

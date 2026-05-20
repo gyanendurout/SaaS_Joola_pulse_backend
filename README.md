@@ -1,4 +1,6 @@
 # SEO Intel — Backend
+<!-- redeploy: 2026-05-20 -->
+
 
 FastAPI service that crawls a URL, runs a 10-step SEO analysis pipeline, and exposes the results over a REST + Server-Sent Events (SSE) API.
 

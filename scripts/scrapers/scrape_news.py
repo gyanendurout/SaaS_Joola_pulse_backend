@@ -1,11 +1,10 @@
-#!/usr/bin/env python
 """Standalone news scraper — runs without the FastAPI server.
 
 Usage (from the backend directory, with venv activated):
-    python scrape_now.py
+    python scripts/scrapers/scrape_news.py
 
-To run silently in the background and keep running even if you close the terminal,
-use run_scrape_bg.ps1 instead.
+To run silently in the background and keep running even if you close the
+terminal, use scripts/run_scrape_bg.ps1 instead.
 """
 from __future__ import annotations
 
@@ -16,9 +15,10 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Ensure imports and .env resolve relative to this file's directory
-os.chdir(Path(__file__).parent)
-sys.path.insert(0, str(Path(__file__).parent))
+# Resolve the backend root (2 levels up: scrapers/ → scripts/ → backend/)
+BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
+os.chdir(BACKEND_ROOT)
+sys.path.insert(0, str(BACKEND_ROOT))
 
 from app.db import service_client
 from app.agents.news_scraper import scrape_all_sites, SITES
@@ -30,9 +30,9 @@ def _utcnow() -> str:
 
 async def main() -> None:
     run_id = str(uuid.uuid4())
-    print(f"[scrape_now] run_id  : {run_id}")
-    print(f"[scrape_now] sites   : {len(SITES)}")
-    print(f"[scrape_now] started : {_utcnow()}")
+    print(f"[scrape_news] run_id  : {run_id}")
+    print(f"[scrape_news] sites   : {len(SITES)}")
+    print(f"[scrape_news] started : {_utcnow()}")
     print()
 
     db = service_client()
@@ -51,12 +51,11 @@ async def main() -> None:
 
     await scrape_all_sites(run_id)
 
-    # Fetch final stats from DB
     result = db.table("news_scrape_runs").select("*").eq("id", run_id).single().execute()
     r = result.data
     print()
     print("=" * 48)
-    print(f"[scrape_now] DONE — {_utcnow()}")
+    print(f"[scrape_news] DONE — {_utcnow()}")
     print(f"  Sites scraped  : {r['sites_scraped']} / {r['sites_total']}")
     print(f"  Articles found : {r['articles_found']}")
     print(f"  New stored     : {r['articles_new']}  (JOOLA-related only)")

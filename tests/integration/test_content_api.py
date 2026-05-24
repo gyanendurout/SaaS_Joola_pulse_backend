@@ -1,17 +1,27 @@
-import asyncio, httpx, json, sys
+"""End-to-end smoke tests for the Content Studio API.
+
+Runs against a live backend server — set PULSE_API to override the default.
+
+Usage:
+    cd backend
+    python tests/integration/test_content_api.py
+    PULSE_API=http://127.0.0.1:8005 python tests/integration/test_content_api.py
+"""
+import asyncio
+import json
+import os
+import sys
+import uuid
+
+import httpx
+
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-BASE = "http://127.0.0.1:8003"
+BASE = os.environ.get("PULSE_API", "http://127.0.0.1:8000")
 
-import uuid
 RUN_ID = uuid.uuid4().hex[:8]
 
 TESTS = [
-    # (label, payload)
-    # Tone: informative|hype|celebratory|defensive|educational|promotional
-    # Audience: recreational|tournament|coaches|parents_juniors|general_fans|press_media
-    # Length: short|medium|long
-    # Unique created_by per test → fresh per-user rate-limit bucket per scenario
     ("TEST 1: IG Post — Athlete Win Celebration", {
         "content_type": "ig_post",
         "tone": "hype",
@@ -73,16 +83,16 @@ TESTS = [
     }),
 ]
 
-async def stream_gen(label, payload):
+
+async def stream_gen(label: str, payload: dict) -> str | None:
     print(f"\n{'='*60}")
     print(f"{label}")
     print(f"{'='*60}")
     try:
         async with httpx.AsyncClient(timeout=120) as c:
             async with c.stream("POST", f"{BASE}/api/content/generate/stream", json=payload) as r:
-                meta = parsed = critic = done_ev = None
+                meta = parsed = critic = done_ev = error_ev = None
                 tokens = 0
-                error_ev = None
                 async for line in r.aiter_lines():
                     if not line.startswith("data:"):
                         continue
@@ -123,10 +133,11 @@ async def stream_gen(label, payload):
                     wc = inner.get("word_count")
                     tags = inner.get("hashtags")
                     reply_len = len(inner.get("reply") or "") if inner.get("reply") else None
-                    snippet = ""
-                    if inner.get("hook"):   snippet = inner["hook"][:70]
-                    elif inner.get("title"): snippet = inner["title"][:70]
-                    elif inner.get("reply"): snippet = inner["reply"][:70]
+                    snippet = (
+                        inner.get("hook", "")[:70]
+                        or inner.get("title", "")[:70]
+                        or inner.get("reply", "")[:70]
+                    )
                     print(f"  parser valid    : {vld}  word_count={wc}  hashtags={len(tags) if tags is not None else 'n/a'}  reply_chars={reply_len}  reasons={reasons}")
                     print(f"  inner keys      : {list(inner.keys())}")
                     if snippet:
@@ -152,16 +163,15 @@ async def stream_gen(label, payload):
         return None
 
 
-async def main():
+async def main() -> None:
+    print(f"Backend: {BASE}")
     draft_ids = []
     for i, (label, payload) in enumerate(TESTS, start=1):
-        # Unique user per test to dodge the per-user 20/hr rate limit
         payload = {**payload, "created_by": f"qa-{RUN_ID}-t{i}@joola.com"}
         did = await stream_gen(label, payload)
         if did:
             draft_ids.append(did)
 
-    # Check drafts listing
     print(f"\n{'='*60}")
     print("DRAFT PERSISTENCE CHECK")
     print(f"{'='*60}")
@@ -174,7 +184,6 @@ async def main():
         for d in drafts[:5]:
             print(f"    - {d.get('id')} | {d.get('content_type')} | {d.get('status')} | {str(d.get('body',''))[:60]}...")
 
-    # Check usage
     print(f"\n{'='*60}")
     print("RATE LIMITER CHECK")
     print(f"{'='*60}")
@@ -183,7 +192,7 @@ async def main():
         u = r.json()
         print(f"  user_used_last_hour : {u.get('user_used_last_hour')}/{u.get('user_limit_per_hour')}")
         print(f"  org_used_today      : {u.get('org_used_today')}/{u.get('org_limit_per_day')}")
-        print(f"  org_month_cost      : ${u.get('org_month_cost_usd',0):.4f} / ${u.get('org_month_cost_cap_usd',0)}")
+        print(f"  org_month_cost      : ${u.get('org_month_cost_usd', 0):.4f} / ${u.get('org_month_cost_cap_usd', 0)}")
 
     print(f"\n{'='*60}")
     print("TEMPLATES CHECK")

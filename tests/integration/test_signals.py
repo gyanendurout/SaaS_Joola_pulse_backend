@@ -1,17 +1,15 @@
-"""Auto-test: every signal kind should drive the generated content's topic.
+"""Integration tests for content-generation signal fidelity.
 
-Covers:
-  - free_prompt:  instructions-only, no signals
-  - seo_pick:     1 SEO keyword picked
-  - top_post:     1 post per platform (IG / TikTok / X / YouTube) picked
-  - news_pick:    1 news article picked (via source_article_id)
+Tests that generated content reflects the chosen signal's topic.
+Covers: free prompts, SEO keywords, top posts (IG/TikTok/X/YouTube), news
+articles, and the brief-overrides-signal regression (Coca-Cola X JOOLA vs a
+Razer post — the signal's topic must NOT bleed into the output when the user
+provides an explicit brief).
 
-For each scenario we extract distinctive topical tokens from the signal,
-generate the IG draft, and check those tokens (or close variants) appear
-in the output. Pass = topic match, Fail = drift to paddle/generic.
-
-Run:
-    cd backend && .venv\\Scripts\\python.exe selftest_topics.py
+Run against a live backend:
+    cd backend
+    python tests/integration/test_signals.py
+    PULSE_API=http://127.0.0.1:8005 python tests/integration/test_signals.py
 """
 from __future__ import annotations
 
@@ -28,11 +26,10 @@ from supabase import create_client
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-BASE = os.environ.get("PULSE_API", "http://127.0.0.1:8005")
+BASE = os.environ.get("PULSE_API", "http://127.0.0.1:8000")
 SUPABASE_URL = "https://loecyghnkkxyymelgexz.supabase.co"
 JOOLA_BRAND_ID = "04db8591-37a3-4634-9d11-536975fa6935"
 
-# Generic words to ignore when scoring topic match
 STOPWORDS = {
     "the", "and", "for", "with", "your", "you", "are", "this", "that", "from",
     "have", "has", "our", "all", "but", "not", "now", "out", "into", "today",
@@ -44,23 +41,37 @@ STOPWORDS = {
 }
 
 
-def load_service_key() -> str:
-    with open(".env", "r") as f:
+def _load_service_key() -> str:
+    env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+    with open(env_path) as f:
         for line in f:
             if line.startswith("SUPABASE_SERVICE_ROLE_KEY="):
                 return line.split("=", 1)[1].strip()
-    raise RuntimeError("Service role key not found in .env")
+    raise RuntimeError("SUPABASE_SERVICE_ROLE_KEY not found in backend/.env")
 
 
-db = create_client(SUPABASE_URL, load_service_key())
+def _extract_distinctive(text: str) -> list[str]:
+    """Pull up to 3 non-stopword tokens from text, expected to appear in output."""
+    if not text:
+        return ["paddle"]
+    words = re.findall(r"\b[A-Za-z][A-Za-z\-]{3,}\b", text)
+    out: list[str] = []
+    for w in words:
+        wl = w.lower()
+        if wl in STOPWORDS or wl in out:
+            continue
+        out.append(wl)
+        if len(out) >= 3:
+            break
+    return out or ["paddle"]
 
 
 @dataclass
 class TestCase:
     name: str
     payload: dict
-    expected_tokens: list[str]  # any of these (case-insensitive) must appear
-    forbidden_tokens: list[str]  # if any of these dominate, fail
+    expected_tokens: list[str]
+    forbidden_tokens: list[str]
 
 
 @dataclass
@@ -76,48 +87,7 @@ class Result:
     full_body: str
 
 
-def build_seo_case() -> TestCase:
-    return TestCase(
-        name="SEO pick: pickleball nets",
-        payload={
-            "content_type": "ig_post",
-            "tone": "informative",
-            "audience": "recreational",
-            "length": "short",
-            "instructions": "",
-            "signals_config": {
-                "use_seo_keywords": True,
-                "use_top_posts": False,
-                "use_news": False,
-                "use_reddit": False,
-                "use_loyal_fans": False,
-                "use_player_roster": False,
-                "selected_seo_keywords": ["pickleball nets"],
-            },
-        },
-        expected_tokens=["net", "nets"],
-        forbidden_tokens=[],
-    )
-
-
-def build_seo_shoes_case() -> TestCase:
-    return TestCase(
-        name="SEO pick: best shoes for pickleball",
-        payload={
-            "content_type": "ig_post",
-            "tone": "informative",
-            "audience": "recreational",
-            "length": "short",
-            "instructions": "",
-            "signals_config": {
-                "use_seo_keywords": True,
-                "selected_seo_keywords": ["best shoes for pickleball"],
-            },
-        },
-        expected_tokens=["shoe", "shoes", "footwear"],
-        forbidden_tokens=[],
-    )
-
+# ── Case builders ─────────────────────────────────────────────────────────────
 
 def build_free_prompt_case(brief: str, expected: list[str]) -> TestCase:
     return TestCase(
@@ -142,10 +112,39 @@ def build_free_prompt_case(brief: str, expected: list[str]) -> TestCase:
     )
 
 
-def build_top_post_case(platform: str, post_row: dict, distinctive: list[str]) -> TestCase:
-    """post_row from the appropriate platform table with `id` + text."""
+def build_seo_case(keywords: list[str], expected: list[str]) -> TestCase:
     return TestCase(
-        name=f"Top post pick ({platform.upper()}): {(post_row.get('text') or post_row.get('caption') or post_row.get('title') or '')[:50]}",
+        name=f"SEO pick: {', '.join(keywords)}",
+        payload={
+            "content_type": "ig_post",
+            "tone": "informative",
+            "audience": "recreational",
+            "length": "short",
+            "instructions": "",
+            "signals_config": {
+                "use_seo_keywords": True,
+                "use_top_posts": False,
+                "use_news": False,
+                "use_reddit": False,
+                "use_loyal_fans": False,
+                "use_player_roster": False,
+                "selected_seo_keywords": keywords,
+            },
+        },
+        expected_tokens=expected,
+        forbidden_tokens=[],
+    )
+
+
+def build_top_post_case(platform: str, post_row: dict, distinctive: list[str]) -> TestCase:
+    label = (
+        post_row.get("text")
+        or post_row.get("caption")
+        or post_row.get("title")
+        or ""
+    )[:50]
+    return TestCase(
+        name=f"Top post ({platform.upper()}): {label}",
         payload={
             "content_type": "ig_post",
             "tone": "hype",
@@ -184,13 +183,34 @@ def build_news_case(article: dict, distinctive: list[str]) -> TestCase:
     )
 
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Runner
-# ──────────────────────────────────────────────────────────────────────────────
+def build_brief_overrides_case(razer_post_id: str) -> TestCase:
+    """Regression: an explicit user brief must override the top-post signal topic.
 
+    Signal  = Razer x JOOLA IG post.
+    Brief   = "Coca-Cola X JOOLA".
+    Expected: output contains coca/coke, does NOT contain razer.
+    """
+    return TestCase(
+        name="Brief overrides signal: Coca-Cola X JOOLA (anti-Razer regression)",
+        payload={
+            "content_type": "ig_post",
+            "tone": "informative",
+            "audience": "general_fans",
+            "length": "short",
+            "instructions": "Coca-Cola X JOOLA",
+            "signals_config": {
+                "use_top_posts": True,
+                "selected_top_post_ids": [razer_post_id],
+            },
+        },
+        expected_tokens=["coca", "coke"],
+        forbidden_tokens=["razer"],
+    )
+
+
+# ── Runner ────────────────────────────────────────────────────────────────────
 
 async def run_case(client: httpx.AsyncClient, case: TestCase) -> Result:
-    # Unique created_by avoids per-user rate-limit collisions across cases
     payload = {**case.payload, "created_by": f"selftest-{uuid.uuid4().hex[:6]}@joola.com"}
     body_chunks: list[str] = []
     meta = done = error = None
@@ -219,12 +239,9 @@ async def run_case(client: httpx.AsyncClient, case: TestCase) -> Result:
 
     full = (done or {}).get("body") or "".join(body_chunks)
     low = full.lower()
-
     matched = [t for t in case.expected_tokens if t.lower() in low]
     missed = [t for t in case.expected_tokens if t.lower() not in low]
     forbidden_hits = [t for t in case.forbidden_tokens if t.lower() in low]
-
-    # Pass rule: at least one expected token present, and no forbidden hits
     passed = len(matched) > 0 and not forbidden_hits
 
     snippet_match = re.search(r"BODY:\s*(.{0,200})", full)
@@ -243,11 +260,13 @@ async def run_case(client: httpx.AsyncClient, case: TestCase) -> Result:
     )
 
 
-async def main():
-    # Build dynamic cases from live DB rows
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+async def main() -> None:
+    db = create_client(SUPABASE_URL, _load_service_key())
     cases: list[TestCase] = []
 
-    # 1) Free prompts — instructions-only
+    # 1) Free prompts — instructions only, no signals
     cases.append(build_free_prompt_case(
         "Write about pickleball court etiquette for new players.",
         expected=["etiquette", "manners", "courteous", "courtesy", "respect"],
@@ -258,48 +277,105 @@ async def main():
     ))
 
     # 2) SEO picks
-    cases.append(build_seo_case())
-    cases.append(build_seo_shoes_case())
+    cases.append(build_seo_case(["pickleball nets"], ["net", "nets"]))
+    cases.append(build_seo_case(["best shoes for pickleball"], ["shoe", "shoes", "footwear"]))
 
-    # 3) Top post — one per platform — pick distinctive product words
-    print("Fetching live posts for top-post cases…")
-    # Instagram — find a post that mentions a JOOLA product line by name
+    # 3) Top post per platform — fetch all in parallel via DB queries
+    print("Fetching live posts for top-post and brief-override cases…")
     PRODUCT_NAMES = ("vision", "perseus", "hyperion", "agassi", "scorpeus", "magnus")
-    ig = db.table("joola_ig_posts").select("post_id,caption").order("engagement_rate", desc=True, nullsfirst=False).limit(50).execute().data
-    ig_pick = next(
-        (p for p in ig if p.get("caption") and any(name in p["caption"].lower() for name in PRODUCT_NAMES)),
-        ig[0],
+
+    ig = (
+        db.table("joola_ig_posts")
+        .select("post_id,caption")
+        .order("engagement_rate", desc=True, nullsfirst=False)
+        .limit(50)
+        .execute()
+        .data
     )
-    ig_caption = (ig_pick.get("caption") or "").lower()
-    ig_expected = [name for name in PRODUCT_NAMES if name in ig_caption] or _extract_distinctive(ig_pick.get("caption") or "")
-    cases.append(build_top_post_case(
-        "instagram",
-        {**ig_pick, "post_id": ig_pick["post_id"]},
-        ig_expected,
-    ))
 
-    # TikTok
-    tt = db.table("tiktok_videos").select("id,text").eq("brand_id", JOOLA_BRAND_ID).order("view_count", desc=True, nullsfirst=False).limit(20).execute().data
-    tt_pick = next((p for p in tt if p.get("text") and "vision" in p["text"].lower()), tt[0])
-    cases.append(build_top_post_case("tiktok", {"post_id": tt_pick["id"], "text": tt_pick["text"]}, _extract_distinctive(tt_pick["text"])))
+    ig_pick = next(
+        (p for p in ig if p.get("caption") and any(n in p["caption"].lower() for n in PRODUCT_NAMES)),
+        ig[0] if ig else None,
+    )
+    if ig_pick:
+        ig_caption = (ig_pick.get("caption") or "").lower()
+        ig_expected = [n for n in PRODUCT_NAMES if n in ig_caption] or _extract_distinctive(ig_pick.get("caption") or "")
+        cases.append(build_top_post_case("instagram", ig_pick, ig_expected))
 
-    # X / Twitter
-    xp = db.table("x_posts").select("id,text").eq("brand_id", JOOLA_BRAND_ID).order("like_count", desc=True, nullsfirst=False).limit(5).execute().data
+    # Brief-overrides-signal regression — look for Razer in the same top-50 fetch
+    razer = next(
+        (p for p in ig if p.get("caption") and "razer" in p["caption"].lower()),
+        None,
+    )
+    if razer:
+        cases.append(build_brief_overrides_case(razer["post_id"]))
+    else:
+        print("  [SKIP] brief-overrides-signal: no Razer post in top-50 IG posts")
+
+    tt = (
+        db.table("tiktok_videos")
+        .select("id,text")
+        .eq("brand_id", JOOLA_BRAND_ID)
+        .order("view_count", desc=True, nullsfirst=False)
+        .limit(20)
+        .execute()
+        .data
+    )
+    if tt:
+        tt_pick = next((p for p in tt if "vision" in (p.get("text") or "").lower()), tt[0])
+        cases.append(build_top_post_case(
+            "tiktok",
+            {"post_id": tt_pick["id"], "text": tt_pick["text"]},
+            _extract_distinctive(tt_pick["text"] or ""),
+        ))
+
+    xp = (
+        db.table("x_posts")
+        .select("id,text")
+        .eq("brand_id", JOOLA_BRAND_ID)
+        .order("like_count", desc=True, nullsfirst=False)
+        .limit(5)
+        .execute()
+        .data
+    )
     if xp:
         x_pick = xp[0]
-        cases.append(build_top_post_case("twitter", {"post_id": x_pick["id"], "text": x_pick["text"]}, _extract_distinctive(x_pick["text"])))
+        cases.append(build_top_post_case(
+            "twitter",
+            {"post_id": x_pick["id"], "text": x_pick["text"]},
+            _extract_distinctive(x_pick["text"] or ""),
+        ))
 
-    # YouTube
-    yt = db.table("yt_videos").select("id,title").eq("brand_id", JOOLA_BRAND_ID).order("view_count", desc=True, nullsfirst=False).limit(5).execute().data
+    yt = (
+        db.table("yt_videos")
+        .select("id,title")
+        .eq("brand_id", JOOLA_BRAND_ID)
+        .order("view_count", desc=True, nullsfirst=False)
+        .limit(5)
+        .execute()
+        .data
+    )
     if yt:
         yt_pick = yt[0]
-        cases.append(build_top_post_case("youtube", {"post_id": yt_pick["id"], "title": yt_pick["title"], "text": yt_pick["title"]}, _extract_distinctive(yt_pick["title"])))
+        cases.append(build_top_post_case(
+            "youtube",
+            {"post_id": yt_pick["id"], "title": yt_pick["title"], "text": yt_pick["title"]},
+            _extract_distinctive(yt_pick["title"] or ""),
+        ))
 
-    # 4) News pick — JOOLA-mention article
-    news = db.table("news_articles").select("id,title,ai_summary").eq("is_joola_mention", True).order("published_at", desc=True).limit(5).execute().data
+    # 4) News pick — most recent JOOLA-mention article
+    news = (
+        db.table("news_articles")
+        .select("id,title,ai_summary")
+        .eq("is_joola_mention", True)
+        .order("published_at", desc=True)
+        .limit(5)
+        .execute()
+        .data
+    )
     if news:
         article = news[0]
-        cases.append(build_news_case(article, _extract_distinctive(article["title"])))
+        cases.append(build_news_case(article, _extract_distinctive(article["title"] or "")))
 
     print(f"\nRunning {len(cases)} test cases against {BASE}\n")
 
@@ -311,35 +387,17 @@ async def main():
             results.append(r)
             status = "✅ PASS" if r.passed else "❌ FAIL"
             print(f"    {status}  model={r.model}  cost=${r.cost}  matched={r.matched}  missed={r.missed}")
+            if r.forbidden_hits:
+                print(f"    ⚠ FORBIDDEN hits: {r.forbidden_hits}")
             print(f"    snippet: {r.snippet[:140]}")
             print()
 
-    # Summary
     print("=" * 78)
     passed = sum(1 for r in results if r.passed)
     print(f"SUMMARY: {passed}/{len(results)} passed")
     for r in results:
         sym = "✅" if r.passed else "❌"
         print(f"  {sym}  {r.name}  -> matched={r.matched}, missed={r.missed}")
-
-
-def _extract_distinctive(text: str) -> list[str]:
-    """Pull 1-3 non-stopword tokens from the signal text we expect to see echoed
-    in the generated output. Returns lowercase tokens of length >=4."""
-    if not text:
-        return ["paddle"]  # fallback
-    words = re.findall(r"\b[A-Za-z][A-Za-z\-]{3,}\b", text)
-    out: list[str] = []
-    for w in words:
-        wl = w.lower()
-        if wl in STOPWORDS:
-            continue
-        if wl in out:
-            continue
-        out.append(wl)
-        if len(out) >= 3:
-            break
-    return out or ["paddle"]
 
 
 if __name__ == "__main__":

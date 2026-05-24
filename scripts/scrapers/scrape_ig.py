@@ -1,46 +1,49 @@
-"""
-JOOLA Instagram Scraper via Apify
-===================================
+"""JOOLA Instagram quick-fetch via Apify.
+
 Fetches the most recent posts and comments from @joolapickleball using
 Apify's instagram-scraper actor, then upserts into Supabase.
 
-USAGE
------
-  python scrape_ig_latest.py                  # fetch last 50 posts
-  python scrape_ig_latest.py --posts 100      # fetch more posts
-  python scrape_ig_latest.py --dry-run        # fetch & print, no DB write
+For the full pipeline (posts + comments + AI analysis + derived tables),
+use scrape_ig_full.py instead.
 
-REQUIRED ENV VARS  (already in backend/.env)
----------------------------------------------
-  APIFY_TOKEN                Apify API token
-  SUPABASE_URL               https://xxxx.supabase.co
-  SUPABASE_SERVICE_ROLE_KEY  Supabase service role key
+Usage (from the backend directory, with venv activated):
+    python scripts/scrapers/scrape_ig.py                  # fetch last 50 posts
+    python scripts/scrapers/scrape_ig.py --posts 100      # fetch more posts
+    python scripts/scrapers/scrape_ig.py --dry-run        # fetch & print, no DB write
+
+Required env vars (in backend/.env):
+    APIFY_TOKEN                Apify API token
+    SUPABASE_URL               https://xxxx.supabase.co
+    SUPABASE_SERVICE_ROLE_KEY  Supabase service role key
 """
+from __future__ import annotations
 
+import argparse
+import json
 import os
 import sys
-import json
-import argparse
-import requests
 from datetime import datetime
 from pathlib import Path
 
 try:
     from dotenv import load_dotenv
-    load_dotenv(Path(__file__).parent / ".env")
+    BACKEND_ROOT = Path(__file__).resolve().parent.parent.parent
+    load_dotenv(BACKEND_ROOT / ".env")
 except ImportError:
     pass
 
+import requests
 from apify_client import ApifyClient
 
-APIFY_TOKEN    = os.environ.get("APIFY_TOKEN", "")
-SB_URL         = os.environ.get("SUPABASE_URL", "")
-SB_KEY         = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+APIFY_TOKEN = os.environ.get("APIFY_TOKEN", "")
+SB_URL      = os.environ.get("SUPABASE_URL", "")
+SB_KEY      = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
 
 IG_PROFILE_URL = "https://www.instagram.com/joolapickleball/"
 
 
 # ── Supabase helpers ──────────────────────────────────────────────────────────
+
 def _sb_headers() -> dict:
     return {
         "apikey": SB_KEY,
@@ -71,6 +74,7 @@ def sb_upsert(table: str, rows: list[dict], on_conflict: str, dry_run: bool = Fa
 
 
 # ── Data helpers ──────────────────────────────────────────────────────────────
+
 def _post_type(media_type: str) -> str:
     t = (media_type or "").lower()
     if t == "video":   return "reel"
@@ -78,7 +82,7 @@ def _post_type(media_type: str) -> str:
     return "image"
 
 
-def _parse_ts(raw) -> str | None:
+def _parse_ts(raw: object) -> str | None:
     if not raw:
         return None
     try:
@@ -90,6 +94,7 @@ def _parse_ts(raw) -> str | None:
 
 
 # ── Apify run ─────────────────────────────────────────────────────────────────
+
 def run_apify_scraper(max_posts: int) -> list[dict]:
     print(f"\nStarting Apify instagram-scraper for {IG_PROFILE_URL} (limit {max_posts}) …")
     client = ApifyClient(APIFY_TOKEN)
@@ -108,8 +113,9 @@ def run_apify_scraper(max_posts: int) -> list[dict]:
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Scrape @joolapickleball → Supabase via Apify")
+    parser = argparse.ArgumentParser(description="Scrape @joolapickleball posts/comments → Supabase via Apify")
     parser.add_argument("--posts",   type=int, default=50,  help="Max posts to fetch (default 50)")
     parser.add_argument("--dry-run", action="store_true",   help="Fetch only, do not write to Supabase")
     args = parser.parse_args()
@@ -139,7 +145,6 @@ def main() -> None:
         like_count    = item.get("likesCount") or 0
         comment_count = item.get("commentsCount") or 0
         view_count    = item.get("videoViewCount") or item.get("videoPlayCount") or 0
-        # ER proxy: (likes + comments) / views for video; 0 otherwise (no reach from Apify)
         er            = round((like_count + comment_count) / view_count, 6) if view_count > 0 else 0.0
 
         post_rows.append({
@@ -181,6 +186,7 @@ def main() -> None:
     sb_upsert("joola_ig_comments", comment_rows, on_conflict="comment_id")
     print("\nDone! Refresh the dashboard to see updated data.")
     print("Tip: run the AI analysis pipeline next to regenerate comment_analysis and post_analysis.")
+    print("     Or use scrape_ig_full.py for a single command that does both.")
 
 
 if __name__ == "__main__":

@@ -166,9 +166,14 @@ def wait_for_run(run_id: str, poll: int = 20) -> bool:
 
 def fetch_run_items(run_id: str) -> list:
     url = f"{APIFY_BASE}/actor-runs/{run_id}/dataset/items?token={APIFY_TOKEN}&clean=true"
-    r = http_get(url, timeout=60)
-    r.raise_for_status()
-    return r.json()
+    for attempt in range(1, 6):
+        r = http_get(url, timeout=60)
+        if r.status_code < 500:
+            r.raise_for_status()
+            return r.json()
+        log(f"  ⚠ Apify {r.status_code} fetching items, retry {attempt}/5 — sleeping 30s")
+        time.sleep(30)
+    raise RuntimeError(f"fetch_run_items failed after 5 retries: last status {r.status_code}")
 
 
 # ─── Supabase helpers ─────────────────────────────────────────────────────────

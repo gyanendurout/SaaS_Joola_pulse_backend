@@ -45,11 +45,13 @@ CREATE INDEX IF NOT EXISTS tiktok_comments_scraped_at_idx
   ON tiktok_comments(scraped_at DESC);
 
 -- Add any missing columns to existing tiktok_comments table (idempotent)
-ALTER TABLE tiktok_comments ADD COLUMN IF NOT EXISTS sentiment_label  TEXT;
-ALTER TABLE tiktok_comments ADD COLUMN IF NOT EXISTS sentiment_score  NUMERIC(4,3);
-ALTER TABLE tiktok_comments ADD COLUMN IF NOT EXISTS topics           TEXT[];
-ALTER TABLE tiktok_comments ADD COLUMN IF NOT EXISTS is_crisis        BOOLEAN;
-ALTER TABLE tiktok_comments ADD COLUMN IF NOT EXISTS is_opportunity   BOOLEAN;
+ALTER TABLE tiktok_comments ADD COLUMN IF NOT EXISTS comment_likes     INTEGER     DEFAULT 0;
+ALTER TABLE tiktok_comments ADD COLUMN IF NOT EXISTS is_brand_reply    BOOLEAN     DEFAULT FALSE;
+ALTER TABLE tiktok_comments ADD COLUMN IF NOT EXISTS sentiment_label   TEXT;
+ALTER TABLE tiktok_comments ADD COLUMN IF NOT EXISTS sentiment_score   NUMERIC(4,3);
+ALTER TABLE tiktok_comments ADD COLUMN IF NOT EXISTS topics            TEXT[];
+ALTER TABLE tiktok_comments ADD COLUMN IF NOT EXISTS is_crisis         BOOLEAN;
+ALTER TABLE tiktok_comments ADD COLUMN IF NOT EXISTS is_opportunity    BOOLEAN;
 
 -- Force PostgREST to reload schema cache
 NOTIFY pgrst, 'reload schema';

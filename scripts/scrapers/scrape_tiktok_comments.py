@@ -284,10 +284,11 @@ def scrape_video_comments(video: dict, max_comments: int, dry_run: bool) -> int:
         # Comment text
         text = item.get("text") or item.get("comment") or ""
 
-        # Author — nested authorMeta.name is the canonical field for this actor
+        # Author — clockworks actor uses top-level uniqueId; legacy actors use authorMeta.name
         author_meta = item.get("authorMeta") or {}
         author = (
-            author_meta.get("name")
+            item.get("uniqueId")              # clockworks/tiktok-comments-scraper
+            or author_meta.get("name")
             or item.get("authorText")
             or item.get("author")
             or ""
@@ -301,8 +302,13 @@ def scrape_video_comments(video: dict, max_comments: int, dry_run: bool) -> int:
             or 0
         )
 
-        # Posted timestamp
-        posted = item.get("createTime") or item.get("publishedAt") or item.get("publishedTime") or None
+        # Posted timestamp — prefer ISO string over Unix integer to satisfy TIMESTAMPTZ
+        posted = (
+            item.get("createTimeISO")          # clockworks actor ISO string
+            or item.get("publishedAt")
+            or item.get("publishedTime")
+            or None
+        )
 
         rows.append({
             "tiktok_comment_id": str(comment_id),

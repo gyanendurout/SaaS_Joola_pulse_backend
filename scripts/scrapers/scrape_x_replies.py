@@ -76,7 +76,7 @@ JOOLA_BRAND_ID = "04db8591-37a3-4634-9d11-536975fa6935"
 
 APIFY_BASE = "https://api.apify.com/v2"
 # Apify actor for Twitter/X scraping
-X_REPLY_ACTOR = "quacker/twitter-scraper"
+X_REPLY_ACTOR = "apidojo/tweet-scraper"
 
 LOG_FILE = BACKEND_ROOT / "logs" / "scrape_x_replies.log"
 LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -137,7 +137,9 @@ def run_actor(actor_id: str, input_data: dict) -> str:
     for attempt in range(1, 6):
         r = http_post(url, json_data=input_data)
         if r.status_code < 500:
-            r.raise_for_status()
+            if not r.ok:
+                log(f"  ✗ Apify {r.status_code} for {actor_id}: {r.text[:400]}")
+                r.raise_for_status()
             run_id = r.json()["data"]["id"]
             log(f"  ▶ Started {actor_id} → run {run_id}")
             return run_id
@@ -274,6 +276,7 @@ def scrape_post_replies(post: dict, max_replies: int, dry_run: bool) -> int:
 
     rows: list[dict] = []
     for item in items:
+        # apidojo/tweet-scraper returns {noResults: true} when no tweets found
         reply_id = (
             item.get("id")
             or item.get("tweetId")
@@ -291,12 +294,14 @@ def scrape_post_replies(post: dict, max_replies: int, dry_run: bool) -> int:
         if reply_id_str in existing:
             continue
 
-        text = item.get("text") or item.get("full_text") or ""
+        # apidojo/tweet-scraper: fullText > text; legacy: full_text
+        text = item.get("fullText") or item.get("text") or item.get("full_text") or ""
 
-        # Extract author from nested or flat fields
+        # apidojo/tweet-scraper nests author with userName (camelCase)
         author_obj = item.get("author") or {}
         author = (
-            author_obj.get("username")
+            author_obj.get("userName")        # apidojo/tweet-scraper
+            or author_obj.get("username")     # legacy quacker actor
             or item.get("user", {}).get("screen_name")
             or item.get("username")
             or ""

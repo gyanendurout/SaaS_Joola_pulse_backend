@@ -66,6 +66,7 @@ async def run_crawl(run_id: UUID) -> dict:
     queue: deque[str] = deque()
 
     pw_context = None  # lazy-init Playwright context the first time we need it
+    pw_available = True  # flips False if the optional playwright extra is missing
 
     async with make_client(settings.user_agent, settings.crawl_request_timeout_sec) as client:
         # --- 1) Discover ---
@@ -85,7 +86,7 @@ async def run_crawl(run_id: UUID) -> dict:
         sem = asyncio.Semaphore(settings.crawl_concurrency)
 
         async def process(url: str) -> None:
-            nonlocal pages_crawled, pages_failed, pw_context
+            nonlocal pages_crawled, pages_failed, pw_context, pw_available
 
             if not disc.is_allowed(url, settings.user_agent):
                 log.info("robots_disallow", url=url)
@@ -100,23 +101,29 @@ async def run_crawl(run_id: UUID) -> dict:
                 result = FetchResult(url=url, final_url=url, status=0, error=str(e))
 
             # --- Tier 2: Playwright fallback (lazy import + lazy context) ---
-            if result.needs_js_render:
-                from app.services.playwright_fetcher import (
-                    browser_context as pw_browser_context,
-                    fetch_with_playwright,
-                )
-
-                if pw_context is None:
-                    # Acquire the async generator and store the active context.
-                    # Caller is responsible for closing via `pw_close()` at end.
-                    cm = pw_browser_context(settings.user_agent)
-                    pw_context = {"cm": cm, "ctx": await cm.__aenter__()}
+            if result.needs_js_render and pw_available:
                 try:
-                    pw_result = await fetch_with_playwright(url, pw_context["ctx"])
-                    if pw_result.ok and len(pw_result.text) > len(result.text or ""):
-                        result = pw_result
-                except Exception as e:
-                    log.warning("playwright_failed", url=url, error=str(e))
+                    from app.services.playwright_fetcher import (
+                        browser_context as pw_browser_context,
+                        fetch_with_playwright,
+                    )
+                except ImportError:
+                    # Playwright is an optional extra and absent on Vercel —
+                    # keep the httpx result and stop trying for this run.
+                    log.warning("playwright_unavailable", url=url)
+                    pw_available = False
+                else:
+                    if pw_context is None:
+                        # Acquire the async generator and store the active context.
+                        # Caller is responsible for closing via `pw_close()` at end.
+                        cm = pw_browser_context(settings.user_agent)
+                        pw_context = {"cm": cm, "ctx": await cm.__aenter__()}
+                    try:
+                        pw_result = await fetch_with_playwright(url, pw_context["ctx"])
+                        if pw_result.ok and len(pw_result.text) > len(result.text or ""):
+                            result = pw_result
+                    except Exception as e:
+                        log.warning("playwright_failed", url=url, error=str(e))
 
             # --- Tier 3: Apify (off by default) ---
             if apify_enabled and not result.ok:

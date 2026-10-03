@@ -4,7 +4,7 @@
 > **Goal:** Re-deploy a working JOOLA Pulse backend + Supabase + scrapers within a working day.
 > **Snapshot:** 2026-05-19
 
-Run this **before** `frontend/recovery/RECOVERY-RUNBOOK.md` — the frontend depends on Supabase being up and the backend Railway URL being known.
+Run this **before** `frontend/recovery/RECOVERY-RUNBOOK.md` — the frontend depends on Supabase being up and the backend Vercel URL being known.
 
 ---
 
@@ -16,7 +16,7 @@ Accounts / API keys needed:
 - **OpenAI** (`gpt-4o-mini` + `gpt-4o`) — billing enabled
 - **DataForSEO** (SEO keyword + SERP data) — paid; account `api@joola.com`
 - **Apify** (Instagram scraping) — paid; existing token has prebuilt actors associated
-- **Railway** (backend hosting)
+- **Vercel** (backend + analytics hosting)
 - **GitHub** (`SaaS_Joola_pulse_backend` repo)
 - *(Optional)* **Google Cloud** (GSC + GA4 OAuth — feature deferred, can skip)
 - *(Optional)* **Photoroom** (image bg removal — low priority)
@@ -140,15 +140,18 @@ git push -u origin main
 
 ---
 
-## Phase 7 — Wire Railway
+## Phase 7 — Wire Vercel
 
-See [railway-setup.md](./railway-setup.md). Summary:
+See [vercel-setup.md](./vercel-setup.md). Summary:
 
-1. Railway → New Service → Deploy from GitHub → pick `SaaS_Joola_pulse_backend`.
-2. Auto-detects `Procfile`: `web: uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}`.
-3. Variables: paste every key from `.env` (one per row — do NOT paste the whole file).
-4. Networking → Generate domain → record the URL. The frontend will need it as `SEO_API_URL`.
-5. First deploy triggers on push to `main`.
+1. Vercel → Add New → Project → Import `gyanendurout/SaaS_Joola_pulse_backend`.
+2. Framework auto-detected as Python / "Other"; root directory = repo root. `api/index.py` (imports `app.main:app`) is the entrypoint; `vercel.json` rewrites all routes to `/api/index` with `maxDuration: 300`.
+3. Environment Variables: add every key from `.env` (one per row — do NOT paste the whole file). Add `CORS_ORIGINS` (frontend Vercel URL) and set `GOOGLE_REDIRECT_BASE_URL` to the backend Vercel URL. Do **not** set `STORAGE_DIR` — the app uses `/tmp` on Vercel.
+4. Deploy → record the `<backend>.vercel.app` URL. The frontend will need it as `SEO_API_URL` (no trailing slash).
+5. Repeat for `gyanendurout/SaaS_Joola_pulse_analytics_backend` (needs `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `CRON_SECRET`, `CORS_ORIGINS`). Its daily Vercel Cron replaces APScheduler. The frontend needs its URL as `ANALYTICS_API_URL`.
+6. Later pushes to `main` auto-deploy.
+
+> **Function time limit:** Vercel functions stop at 300s (Hobby) / up to 800s (Pro). The Phase 8 backfills (news scrape, paddle sync, large SEO crawls) must run locally via the scripts below, not through the deployed API.
 
 ---
 
@@ -193,11 +196,11 @@ IG enriches inline. **No enrichment script exists for TikTok / X / Reddit** — 
 
 ```bash
 # Backend API
-curl https://<railway-backend-url>/docs   # OpenAPI page loads
-curl https://<railway-backend-url>/api/runs   # JSON list (may be empty)
+curl https://<backend>.vercel.app/docs   # OpenAPI page loads
+curl https://<backend>.vercel.app/api/runs   # JSON list (may be empty)
 
 # Trigger an SEO crawl against joola.com
-curl -X POST https://<railway-backend-url>/api/analyze \
+curl -X POST https://<backend>.vercel.app/api/analyze \
   -H 'content-type: application/json' \
   -d '{"url":"https://joola.com"}'
 ```
@@ -213,6 +216,6 @@ Run the regression script one more time after deploy. See [qa/README.md](../qa/R
 | 1 | No SQL migrations for `brands`, `joola_ig_*`, `yt_*`, `tiktok_*`, `x_*`, `reddit_mentions`, `influencers`, `influencer_posts` | Reconstruct from `database/schema-overview.md`. Save the resulting `CREATE TABLE` statements as `008_social_and_ig_tables.sql` in the recovered repo so future recoveries are clean. |
 | 2 | YouTube / TikTok / X / Reddit scrapers not in repo | Check Apify console first; otherwise rebuild per `scrapers/*.md` |
 | 3 | AI enrichment only for Instagram | Port patterns from `frontend/scripts/scrape_joola_ig.py` to per-platform files. See `scrapers/ai-enrichment-pipeline.md`. |
-| 4 | Railway env vars + build settings live only in Railway dashboard | After restoration, screenshot Service → Variables and Service → Settings and commit them here for next time. |
+| 4 | Vercel env vars + project settings live only in the Vercel dashboard | After restoration, screenshot Project → Settings → Environment Variables and Domains and commit them here for next time. |
 | 5 | Google OAuth credentials (GSC/GA4) | Feature deferred — leave blank. Recreate via Google Cloud Console (instructions in `secrets-checklist.md`). |
 | 6 | Apify actor input schemas | Re-input via Apify console → Actor → Input tab. Document at restore time. |

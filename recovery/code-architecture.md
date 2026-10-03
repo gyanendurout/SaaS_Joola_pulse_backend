@@ -61,7 +61,9 @@ backend/
 ├── scrape_ig_latest.py             (Standalone) IG single-shot helper
 ├── requirements.txt
 ├── pyproject.toml
-├── Procfile                        Railway start command
+├── api/index.py                    Vercel entrypoint (imports app.main:app)
+├── vercel.json                     Vercel rewrites → /api/index, maxDuration 300
+├── .vercelignore
 └── .env                            Local secrets (NOT committed)
 ```
 

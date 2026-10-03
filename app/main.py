@@ -13,6 +13,7 @@ from app.routes.analyze import router as analyze_router
 from app.routes.content import router as content_router
 from app.routes.exports import router as exports_router
 from app.routes.news import router as news_router
+from app.routes.paddles import router as paddles_router
 from app.routes.performance import router as performance_router
 from app.routes.results import router as results_router
 from app.routes.runs import router as runs_router
@@ -36,10 +37,9 @@ def create_app() -> FastAPI:
         description="Crawl a website, detect SEO issues, discover entities, research keywords.",
     )
 
-    # CORS — POC: allow Next.js dev server.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000"],
+        allow_origins=settings.cors_origin_list,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -63,6 +63,7 @@ def create_app() -> FastAPI:
     app.include_router(analyze_router)
     app.include_router(content_router)
     app.include_router(news_router)
+    app.include_router(paddles_router)
     app.include_router(performance_router)
     app.include_router(runs_router)
     app.include_router(results_router)

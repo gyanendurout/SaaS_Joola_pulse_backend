@@ -1,0 +1,11 @@
+.venv
+.env
+__pycache__
+*.pyc
+tests
+logs
+storage
+qa
+recovery
+supabase
+scrape_*.py

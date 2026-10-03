@@ -1,9 +1,15 @@
 """Application configuration loaded from environment / .env."""
+import os
 from functools import lru_cache
 from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Vercel sets VERCEL=1. Its filesystem is read-only except /tmp, which is
+# per-instance and ephemeral — fine for scratch files, never for durable state.
+ON_VERCEL = bool(os.environ.get("VERCEL"))
+WRITABLE_ROOT = Path("/tmp") if ON_VERCEL else Path(__file__).resolve().parents[1]
 
 
 class Settings(BaseSettings):
@@ -33,6 +39,12 @@ class Settings(BaseSettings):
     apify_token: str = Field(default="")
     apify_enabled: bool = Field(default=False)
 
+    # Dick's Sporting Goods Bazaarvoice tenant (plan O3). Public client-side
+    # values, not secrets — bootstrapped once from a PDP, then reused forever.
+    dsg_bv_client: str = Field(default="")
+    dsg_bv_token: str = Field(default="")
+    dsg_bv_origin: str = Field(default="https://www.dickssportinggoods.com")
+
     # Google OAuth (for GSC + GA4 integrations — optional)
     google_client_id: str = Field(default="")
     google_client_secret: str = Field(default="")
@@ -40,7 +52,11 @@ class Settings(BaseSettings):
 
     # App
     app_env: str = Field(default="local")
-    storage_dir: str = Field(default="./storage")
+    storage_dir: str = Field(default=str(WRITABLE_ROOT / "storage"))
+    # Comma-separated. The browser normally reaches this API through the
+    # frontend's /seo-api rewrite (server-side), so CORS only matters for
+    # direct calls.
+    cors_origins: str = Field(default="http://localhost:3000")
     default_market: str = Field(default="US")
     default_language: str = Field(default="en")
     max_pages_per_crawl: int = Field(default=300)
@@ -59,6 +75,10 @@ class Settings(BaseSettings):
         p = Path(self.storage_dir).resolve()
         p.mkdir(parents=True, exist_ok=True)
         return p
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 @lru_cache

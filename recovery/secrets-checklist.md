@@ -86,7 +86,7 @@ Found in `frontend/.env.local`: `PHOTOROOM_API_KEY=sandbox_sk_pr_default_...`. N
 
 - [ ] **`SEO_API_URL`** in `frontend/.env.local`
   - Local: `http://localhost:8000`
-  - Production: the Railway-generated domain for the backend service, e.g. `https://saas-joola-pulse-backend.up.railway.app`
+  - Production: the Vercel URL of the backend project, e.g. `https://<backend>.vercel.app` (no trailing slash)
   - Wired by `next.config.mjs` → `/seo-api/:path*` rewrites to `${SEO_API_URL}/api/:path*`
 
 ---

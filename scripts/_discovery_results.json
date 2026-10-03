@@ -1,0 +1,169 @@
+{
+  "paddletek": {
+    "base_url": "https://www.paddletek.com",
+    "platform_guess": "Judge.me",
+    "markers": {
+      "Judge.me": 479,
+      "Okendo": 77
+    },
+    "is_shopify": true,
+    "catalog_path": "/collections/all/products.json?limit=250",
+    "catalog_count": 63,
+    "paddle_count": 3,
+    "sample_product": {
+      "id": 9057255981310,
+      "handle": "paddle-buffer",
+      "title": "Paddle Buffer"
+    },
+    "robots_note": "187 lines, 45 Disallow rules for UA:*",
+    "robots_disallows_reviews": [
+      "/*preview_theme_id*",
+      "/*preview_script_id*",
+      "/recommendations/products",
+      "/*/recommendations/products",
+      "/products/*-[a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9]-remote",
+      "/*/products/*-[a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9]-remote",
+      "/collections/*/products/*-[a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9]-remote",
+      "/*/collections/*/products/*-[a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9][a-f0-9]-remote"
+    ],
+    "bot_protection": "Cloudflare",
+    "rendered_api_calls": [
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/widget_write_review_modal.js",
+      "POST https://tracking.aws.judge.me/widgets/track_bulk_events?_events_count=1"
+    ],
+    "errors": []
+  },
+  "crbn": {
+    "base_url": "https://crbnpickleball.com",
+    "platform_guess": "Judge.me",
+    "markers": {
+      "Judge.me": 521,
+      "Okendo": 54,
+      "Yotpo": 7,
+      "Loox": 3,
+      "Stamped.io": 2
+    },
+    "is_shopify": true,
+    "catalog_path": "/collections/all/products.json?limit=250",
+    "catalog_count": 85,
+    "paddle_count": 3,
+    "sample_product": {
+      "id": 7401596616856,
+      "handle": "crbn-pickleball-paddle-cleaner-eraser",
+      "title": "CRBN Pickleball Paddle Eraser\u2122"
+    },
+    "robots_note": "116 lines, 40 Disallow rules for UA:*",
+    "robots_disallows_reviews": [
+      "/recommendations/products",
+      "/*/recommendations/products",
+      "/*?*preview_theme_id=*",
+      "/*?*preview_script_id=*"
+    ],
+    "bot_protection": "Cloudflare",
+    "rendered_api_calls": [
+      "GET https://cdn1.stamped.io/files/widget.min.js",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/widget_write_review_modal.js",
+      "GET https://judgeme-public-images.imgix.net/judgeme/logos/verified-checkmark.svg",
+      "GET https://cdn1.stamped.io/files/widget.min.css",
+      "GET https://stamped.io/api/getappkey?shopShopifyDomain=crbn-pickleball.myshopify.com",
+      "GET https://static.klaviyo.com/onsite/js/vendors~static~in_app_forms~signup_forms~post_identification_sync~web_personalization~client_identity~server_side",
+      "GET https://static.klaviyo.com/onsite/js/vendors~in_app_forms~signup_forms~reviews~atlas~product_recommendations.8ab9a4ef82ae0.js?cb=2",
+      "POST https://tracking.aws.judge.me/widgets/track_bulk_events?_events_count=1",
+      "GET https://cdn.shopify.com/s/files/1/0577/8944/8344/files/crbn-pickleball-reviews-shipping_x320.png?v=1726270299"
+    ],
+    "errors": [
+      "rendered pass: TimeoutError: Page.goto: Timeout 45000ms exceeded.\nCall log:\n  - navigating to \"https://crbnpickleball.com/products/crbn-pic"
+    ]
+  },
+  "sixzero": {
+    "base_url": "https://sixzeropickleball.com",
+    "platform_guess": "Judge.me",
+    "markers": {
+      "Judge.me": 653,
+      "Okendo": 79,
+      "Yotpo": 7,
+      "Loox": 3
+    },
+    "is_shopify": true,
+    "catalog_path": "/products.json?limit=250",
+    "catalog_count": 54,
+    "paddle_count": 2,
+    "sample_product": {
+      "id": 10037712978224,
+      "handle": "paddle-hard-case",
+      "title": "Paddle Hard Case"
+    },
+    "robots_note": "116 lines, 40 Disallow rules for UA:*",
+    "robots_disallows_reviews": [
+      "/recommendations/products",
+      "/*/recommendations/products",
+      "/*?*preview_theme_id=*",
+      "/*?*preview_script_id=*"
+    ],
+    "bot_protection": "Cloudflare",
+    "rendered_api_calls": [
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/widget_write_review_modal.js",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/ReviewWidget-BYX-Jo1Z.css",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/review_widget.js",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/ReviewWidgetManager-sw02gwfw.js",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/ReviewWidget-DN9iYaxO.js",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/review_widget-C9I4CDCq.js",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/review_api-DJ3c7nyW.js",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/ReviewWidgetHeader-BFC7dZaL.js",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/reviewWidgetHeaderProps-D3jDvuVT.js",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/useReviewSiteLinks-BaXx90BU.js",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/reviewWidgetHeaderProps-Dgbl_G3U.css",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/MediaPreview-UnVwAwf8.js",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/ReviewItem-BsStDOns.js",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/ReviewContent-BOlkFRZN.js",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/ReviewContent-DzgWFMUg.css",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/ReviewItem-J4AYmYw1.css",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/MediaPreview-bU8xRhtP.css",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/ReviewWidgetHeader-sgSweSNN.css",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/ReviewWidgetBody-DkM25TRW.js",
+      "GET https://cdn.shopify.com/extensions/01a01092-7597-7686-b865-a3dfa70b4800/judgeme-709/assets/ReviewWidgetBody-ByIH3u9-.css",
+      "GET https://static.klaviyo.com/onsite/js/vendors~static~in_app_forms~signup_forms~post_identification_sync~web_personalization~client_identity~server_side",
+      "GET https://static.klaviyo.com/onsite/js/vendors~in_app_forms~signup_forms~reviews~atlas~product_recommendations.8ab9a4ef82ae0.js?cb=2",
+      "GET https://review-images.judgeme.com/six-zero/1781072254__image__original.jpg?quality=80&width=160",
+      "GET https://judgeme-public-images.imgix.net/judgeme/flags/US.svg",
+      "GET https://judgeme-public-images.imgix.net/judgeme/flags/AU.svg"
+    ],
+    "errors": [
+      "rendered pass: TimeoutError: Page.goto: Timeout 45000ms exceeded.\nCall log:\n  - navigating to \"https://sixzeropickleball.com/products/paddl"
+    ]
+  },
+  "pickleballcentral": {
+    "base_url": null,
+    "platform_guess": "unknown",
+    "markers": {},
+    "is_shopify": false,
+    "catalog_path": null,
+    "catalog_count": null,
+    "paddle_count": null,
+    "sample_product": null,
+    "robots_note": "",
+    "robots_disallows_reviews": [],
+    "bot_protection": "Cloudflare, challenge(status=403)",
+    "rendered_api_calls": [],
+    "errors": [
+      "no candidate domain returned < 400"
+    ]
+  },
+  "dicks": {
+    "base_url": null,
+    "platform_guess": "unknown",
+    "markers": {},
+    "is_shopify": false,
+    "catalog_path": null,
+    "catalog_count": null,
+    "paddle_count": null,
+    "sample_product": null,
+    "robots_note": "",
+    "robots_disallows_reviews": [],
+    "bot_protection": "Akamai, challenge(status=403)",
+    "rendered_api_calls": [],
+    "errors": [
+      "no candidate domain returned < 400"
+    ]
+  }
+}

@@ -45,8 +45,7 @@ GitHub: gyanendurout/SaaS_Joola_pulse_analytics_backend  ──►  Vercel proje
 
 ### Build
 
-- `api/index.py` is the Vercel Python entrypoint; it imports `app.main:app`.
-- `vercel.json` rewrites every route to `/api/index` and sets `maxDuration: 300`.
+- Vercel zero-config FastAPI: auto-detects `app` in `app/main.py` (no entry file, no rewrites — a `/(.*)`→`/api/index` rewrite breaks routing: FastAPI sees `/api/index` and 404s everything).
 - `.vercelignore` keeps local-only files out of the upload.
 - Dependencies installed from `requirements.txt`.
 - **Playwright is not installed on Vercel.** It is an optional extra for local use only (`pip install -e ".[js]"`). When it is absent the crawler skips JS rendering.
@@ -86,7 +85,7 @@ Copy every key from `backend/recovery/env.template`, set real values. Critical o
 
 ### Build
 
-- `api/index.py` is the entrypoint; `vercel.json` rewrites to `/api/index`, `maxDuration: 300`.
+- Same zero-config detection of `app/main.py`; `vercel.json` holds only the daily cron.
 - Dependencies from `requirements.txt`; `.vercelignore` trims the upload.
 - **Vercel Cron** (`vercel.json`): `0 6 * * *` (daily) → `GET /api/cron/pipeline`. The in-process APScheduler never runs on Vercel; Cron replaces it.
 
@@ -140,7 +139,7 @@ After all three projects are deployed and have URLs:
 
 ## Known Vercel limitations
 
-- **Function duration is capped**: 300s on Hobby, up to 800s on Pro (raise `maxDuration` in `vercel.json` on Pro). Long jobs will **not** finish inside a request:
+- **Function duration is capped**: 300s on Hobby, up to 800s on Pro (Vercel default; configurable in Project → Settings → Functions on Pro). Long jobs will **not** finish inside a request:
   - paddle sync (`scripts/paddle_sync_all.py`, ~34 min)
   - news scrape
   - large SEO crawls

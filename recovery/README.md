@@ -34,7 +34,7 @@ This recovery package is **backend-owned but covers the database** (single sourc
 | Agents | OpenAI gpt-4o-mini + gpt-4o | `app/agents/` |
 | DB client | `supabase-py` w/ service-role key | `app/db.py` |
 | External APIs | DataForSEO (SEO), Apify (IG), OpenAI | `app/services/` |
-| Deploy | Vercel project (Python function, `api/index.py`), auto-deploys on push to `main` | GitHub `SaaS_Joola_pulse_backend` |
+| Deploy | Vercel project (zero-config FastAPI, `app/main.py`), auto-deploys on push to `main` | GitHub `SaaS_Joola_pulse_backend` |
 
 ---
 

@@ -61,8 +61,7 @@ backend/
 ├── scrape_ig_latest.py             (Standalone) IG single-shot helper
 ├── requirements.txt
 ├── pyproject.toml
-├── api/index.py                    Vercel entrypoint (imports app.main:app)
-├── vercel.json                     Vercel rewrites → /api/index, maxDuration 300
+├── .vercelignore                   Files excluded from the Vercel upload (app/main.py is auto-detected)
 ├── .vercelignore
 └── .env                            Local secrets (NOT committed)
 ```

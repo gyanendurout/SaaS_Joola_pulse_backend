@@ -145,7 +145,7 @@ git push -u origin main
 See [vercel-setup.md](./vercel-setup.md). Summary:
 
 1. Vercel → Add New → Project → Import `gyanendurout/SaaS_Joola_pulse_backend`.
-2. Framework auto-detected as Python / "Other"; root directory = repo root. `api/index.py` (imports `app.main:app`) is the entrypoint; `vercel.json` rewrites all routes to `/api/index` with `maxDuration: 300`.
+2. Framework auto-detected as Python / "Other"; root directory = repo root. Vercel auto-detects the FastAPI `app` in `app/main.py` (no entry file or rewrites needed).
 3. Environment Variables: add every key from `.env` (one per row — do NOT paste the whole file). Add `CORS_ORIGINS` (frontend Vercel URL) and set `GOOGLE_REDIRECT_BASE_URL` to the backend Vercel URL. Do **not** set `STORAGE_DIR` — the app uses `/tmp` on Vercel.
 4. Deploy → record the `<backend>.vercel.app` URL. The frontend will need it as `SEO_API_URL` (no trailing slash).
 5. Repeat for `gyanendurout/SaaS_Joola_pulse_analytics_backend` (needs `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, `CRON_SECRET`, `CORS_ORIGINS`). Its daily Vercel Cron replaces APScheduler. The frontend needs its URL as `ANALYTICS_API_URL`.
